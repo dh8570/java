@@ -3,6 +3,8 @@ package test.frame;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.List;
 
 import javax.swing.JButton;
@@ -13,6 +15,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
 
 import test.dao.MemberDao;
@@ -35,14 +38,15 @@ import test.pack.MemberDto;
    }
  * 
  */
-public class TestFrame extends JFrame implements ActionListener {
+public class MemberFrame extends JFrame implements ActionListener, PropertyChangeListener{
    //필드
    JTextField inputName, inputAddr;
    DefaultTableModel model;
    JTable table;
    
+   
    //생성자
-   public TestFrame() {
+   public MemberFrame() {
       setLayout(new BorderLayout());
       
       JLabel label1=new JLabel("이름");
@@ -54,9 +58,6 @@ public class TestFrame extends JFrame implements ActionListener {
       JButton saveBtn=new JButton("저장");
       saveBtn.setActionCommand("save");
       
-      JButton updateBtn=new JButton("수정");
-      updateBtn.setActionCommand("update");
-      
       //삭제 버튼 추가
       JButton deleteBtn=new JButton("삭제");
       deleteBtn.setActionCommand("delete");
@@ -67,7 +68,6 @@ public class TestFrame extends JFrame implements ActionListener {
       panel.add(label2);
       panel.add(inputAddr);
       panel.add(saveBtn);
-      panel.add(updateBtn);
       panel.add(deleteBtn);
       
       add(panel, BorderLayout.NORTH);
@@ -77,7 +77,16 @@ public class TestFrame extends JFrame implements ActionListener {
       //칼럼명을 String[] 에 순서대로 준비
       String[] colNames= {"번호", "이름", "주소"};
       //테이블에 출력할 정보를 가지고 있는 모델 객체 (칼럼명, row 갯수)
-      model=new DefaultTableModel(colNames, 0);
+      model=new DefaultTableModel(colNames, 0) {
+    	  @Override
+    	  public boolean isCellEditable(int row, int column) {
+    		  if(column == 0) {
+    			  return false;
+    		  }
+    		  return super.isCellEditable(row, column);
+    	  }
+      };
+      
       //모델을 테이블에 연결한다.
       table.setModel(model);
       //스크롤이 가능 하도록 테이블을 JScrollPane 에 감싼다.
@@ -86,120 +95,95 @@ public class TestFrame extends JFrame implements ActionListener {
       add(scroll, BorderLayout.CENTER);
       
       displayMember();
-      displayMembers();
       
+      //버튼에 액션리스너 등록
       saveBtn.addActionListener(this);
-      updateBtn.addActionListener(this);
       deleteBtn.addActionListener(this);
+      
+      table.addPropertyChangeListener(this);
    }
    
    //테이블에 데이터 출력하는 메소드
    public void displayMember() {
-      
-      //model.setRowCount(0); //테이블에 출력된 데이터 reset 
-      
-      Object[] row1= {1, "김구라", "노량진"};
-      model.addRow(row1);
-      
-      Object[] row2= {2, "해골", "행신동"};
-      model.addRow(row2);
-      
-      Object[] row3= {3, "원숭이", "상도동"};
-      model.addRow(row3);
-      
-   }
-   
-   public void displayMembers() {
 	   model.setRowCount(0);
 	   
-	   MemberDao dao = new MemberDao();
-	   List<MemberDto> memList = dao.getAllData();
+	   List<MemberDto> memList = new MemberDao().getAllData();
 	   for(MemberDto member:memList) {
 		   Object[] row = {member.getNum(), member.getName(), member.getAddr()};
 		   model.addRow(row);
 	   }
-   }
-   
+	}
    
    //main  메소드
    public static void main(String[] args) {
-      TestFrame f=new TestFrame();
+      MemberFrame f=new MemberFrame();
       f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
       f.setBounds(100, 100, 800, 500);
       f.setVisible(true);
    }
 
+   @Override
+   public void actionPerformed(ActionEvent e) {
+	   
+      //눌러진 버튼의 action command 값을 읽어와서 
+      String command=e.getActionCommand();
+      //분기한다. 
+      if(command.equals("save")) {
+         String name = inputName.getText();
+         String addr = inputAddr.getText();
+         
+         MemberDto dto = new MemberDto();
+         dto.setName(name);
+         dto.setAddr(addr);
+         
+         boolean isSuccess = new MemberDao().insert(dto);
+         if(isSuccess) {
+        	 displayMember();
+         } else {
+        	 System.out.println("추가 실패!");
+         }
+      }else if(command.equals("delete")) {
+         try {
+        	 MemberDao dao = new MemberDao();
+        	 
+        	 int[] selectedNums = table.getSelectedRows();
+        	 
+        	 for(int selectedNum:selectedNums) {
+        		 System.out.println(selectedNum);
+        		 int num = (int)model.getValueAt(selectedNum, 0);
+        		 boolean isSuccess = dao.delete(num);
+        	 }
+        	 displayMember();
+         } catch(Exception e1) {
+        	 JOptionPane.showMessageDialog(this, "삭제할 ROW를 선택하세요!");
+         }
+         
+      }
+   }
+
 	@Override
-	public void actionPerformed(ActionEvent e) {
-		String actionComm = e.getActionCommand();
+	public void propertyChange(PropertyChangeEvent evt) {
+		boolean isEdit = table.isEditing();
+		String eventProp = evt.getPropertyName();
 		MemberDao dao = new MemberDao();
 		MemberDto dto = null;
-		List<MemberDto> memList = null;
 		boolean isSuccess = true;
 		
-		if(actionComm.equals("save")) {
-			String name = inputName.getText();
-			String addr = inputAddr.getText();
+		if(!isEdit && eventProp.equals("tableCellEditor")) {
+			int rowNum = table.getSelectedRow();
+			int columnNum = table.getSelectedColumn();
 			
-			if(name.equals("")) {
-				JOptionPane.showMessageDialog(null, "회원명을 입력하세요!", "Did not input userName", JOptionPane.WARNING_MESSAGE);
-			}
-			
-			dto = new MemberDto();
-			dto.setName(name);
-			dto.setAddr(addr);
-			
-			isSuccess = dao.insert(dto);
+			int num = (int)model.getValueAt(rowNum, 0);
+			String name = (String)model.getValueAt(rowNum, 1);
+			String addr = (String)model.getValueAt(rowNum, 2);
+			dto = new MemberDto(num, name, addr);
+			isSuccess = dao.update(dto);
 			
 			if(isSuccess) {
-				// 전체 데이터 출력
-				displayMembers();
+				displayMember();
 			} else {
-				JOptionPane.showMessageDialog(null, "ROW 추가 실패!", "Fail to add rowData", JOptionPane.WARNING_MESSAGE);
-			}
-		} else if(actionComm.equals("update")) {
-			try {
-				int selectedNum = table.getSelectedRow();
-				int num = (int)model.getValueAt(selectedNum, 0);
-				String name = inputName.getText();
-				String addr = inputAddr.getText();
-				if(name.equals("") || addr.equals("")) {
-					JOptionPane.showMessageDialog(null, "수정할 회원정보를 입력하세요!", "Did not input userInfo", JOptionPane.WARNING_MESSAGE);
-				}
-				dto = new MemberDto(num, name, addr);
-				
-				isSuccess = dao.update(dto);
-				if(isSuccess) {
-					// 전체 데이터 출력
-					displayMembers();
-				} else {
-					JOptionPane.showMessageDialog(null, "ROW 수정 실패!", "Fail to update rowData", JOptionPane.WARNING_MESSAGE);
-				}
-			} catch(Exception e1) {
-				JOptionPane.showMessageDialog(null, "수정할 ROW를 선택하세요!", "Did not choice rowData", JOptionPane.WARNING_MESSAGE);
-			}
-		}
-		else if(actionComm.equals("delete")) {
-			try {
-				int selectedNum = table.getSelectedRow();
-				int num = (int)model.getValueAt(selectedNum, 0);
-				isSuccess = dao.delete(num);
-				if(isSuccess) {
-					// 테이블 초기화
-					model.setRowCount(0);
-					
-					// 전체 데이터 수집
-					memList = dao.getAllData();
-					
-					// 전체 데이터 출력
-					displayMembers();
-				} else {
-					JOptionPane.showMessageDialog(null, "ROW 삭제 실패!", "Fail to delete rowData", JOptionPane.WARNING_MESSAGE);
-				}
-			} catch(Exception e1) {
-				JOptionPane.showMessageDialog(null, "삭제할 ROW를 선택하세요!", "Did not choice rowData", JOptionPane.WARNING_MESSAGE);
+				JOptionPane.showMessageDialog(this, "수정 실패!");
 			}
 		}
 	}
 }
-
