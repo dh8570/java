@@ -5,32 +5,35 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
-import test.db.DBConnect;
-import test.pack.MemberDto;
-
 public class MainClass01 {
 	public static void main(String[] args) {
 		Connection conn = null;
-		PreparedStatement ps = null;
-		ResultSet rs = null;
-		MemberDto mem = null;
 		
 		try {
-			conn = new DBConnect().getConn();
-			String query = "SELECT num, name, address FROM member ORDER BY num ASC";
+			// 오라클 드라이버 로딩
+			Class.forName("oracle.jdbc.driver.OracleDriver");
+			// 오라클 DB 주소 경로 지정
+			// @ip주소:port번호:db이름
+			String url = "jdbc:oracle:thin:@localhost:1521:xe";
+			// 계정, 비밀번호를 이용해 db 연결
+			conn = DriverManager.getConnection(url, "scott", "tiger");
+			
+			System.out.println("DB 접속에 성공하였습니다.");
+		} catch(Exception e) {
+			e.printStackTrace();
+		}
+		
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+		try {
+			String query = "SELECT empno, ename FROM EMP ORDER BY empno ASC";
 			ps = conn.prepareStatement(query);
 			rs = ps.executeQuery();
-			mem = new MemberDto();
 			
 			while(rs.next()) {
-				int num = rs.getInt("num");
-				String name = rs.getString("name");
-				String addr = rs.getString("address");
-				
-				mem.setNum(num);
-				mem.setName(name);
-				mem.setAddr(addr);
-				System.out.println(mem.getNum());
+				int num = rs.getInt("empno");
+				String name = rs.getString("ename");
+				System.out.println("사원번호 : "+num+",\t사원명 : "+name);
 			}
 		} catch(Exception e) {
 			e.printStackTrace();
